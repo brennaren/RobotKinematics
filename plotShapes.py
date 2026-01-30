@@ -17,9 +17,9 @@ def plot_circle(radius, center, angle_step, steps_per_second):
         plt.pause(1 / steps_per_second)
 
 
-def plot_line(start, end, steps_per_second):
+def plot_line(start, end, step, steps_per_second):
     num_points = int(np.hypot(end[0] - start[0], end[1] - start[1])
-                     / steps_per_second * 20)
+                     / step)
     x_values = np.linspace(start[0], end[0], num_points)
     y_values = np.linspace(start[1], end[1], num_points)
 
@@ -29,14 +29,14 @@ def plot_line(start, end, steps_per_second):
         plt.pause(1 / steps_per_second)
 
 
-def plot_quadrilateral(vertices, steps_per_second):
+def plot_quadrilateral(vertices, step, steps_per_second):
     # Coordinate arrays with point 0 appended at the end to close the shape
     x_coords = [v[0] for v in vertices] + [vertices[0][0]]
     y_coords = [v[1] for v in vertices] + [vertices[0][1]]
 
     for i in range(4):
         plot_line((x_coords[i], y_coords[i]), (x_coords[i+1], y_coords[i+1]),
-                  line, steps_per_second)
+                  step, steps_per_second)
 
 
 def plot_semicircle(start, end, angle_step, steps_per_second, direction):
@@ -63,7 +63,7 @@ def plot_semicircle(start, end, angle_step, steps_per_second, direction):
         plt.pause(1 / steps_per_second)
 
 
-def plot_curved_quadrilateral(vertices, steps_per_second):
+def plot_curved_quadrilateral(vertices, step, angle_step, steps_per_second):
     # Coordinate arrays
     x_coords = [v[0] for v in vertices]
     y_coords = [v[1] for v in vertices]
@@ -72,14 +72,13 @@ def plot_curved_quadrilateral(vertices, steps_per_second):
     direction = 'CCW'
 
     plot_line((x_coords[0], y_coords[0]), (x_coords[1], y_coords[1]),
-              steps_per_second)
+              step, steps_per_second)
     plot_semicircle((x_coords[1], y_coords[1]), (x_coords[2], y_coords[2]),
-                    10, steps_per_second, direction)
+                    angle_step, steps_per_second, direction)
     plot_line((x_coords[2], y_coords[2]), (x_coords[3], y_coords[3]),
-              steps_per_second)
+              step, steps_per_second)
     plot_semicircle((x_coords[3], y_coords[3]), (x_coords[0], y_coords[0]),
-                    10, steps_per_second, direction)
-
+                    angle_step, steps_per_second, direction)
 
 def create_plot():
     global line
@@ -108,5 +107,5 @@ if __name__ == '__main__':
     # plot_quadrilateral([(0, 0), (4, 1), (5, 3), (2, 2)], 15)
     # plot_semicircle((0, 0), (3, 2), 10, 5, 'CW')   # Modify parameters here
     create_plot()
-    plot_curved_quadrilateral([(0, 0), (5, 0), (5, 5), (0, 5)], 10)
+    plot_curved_quadrilateral([(0, 0), (5, 0), (5, 5), (0, 5)], 10, 10)
     end_plot()
