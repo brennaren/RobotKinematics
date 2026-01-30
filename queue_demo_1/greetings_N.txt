@@ -1,0 +1,12 @@
+# time function(parameters)
+# times are relative, order as in file
+0.1 relativeTime(True)
+5 hello("Albert")
+1 hello("Harry")
+2 hi("Fred")
+3 hello("George")
+2 hello("Bertram")
+0.1 ended("1")
+0.1 startQ("from file")
+5 hello("tardy")
+0.1 ended("2")
