@@ -6,7 +6,8 @@ import plotShapes
 available_functions = ['plotShapes.plot_circle', 'plotShapes.plot_line',
                        'plotShapes.plot_quadrilateral',
                        'plotShapes.plot_curved_quadrilateral',
-                       'plotShapes.plot_semicircle']
+                       'plotShapes.plot_semicircle',
+                       'plotShapes.plot_tank_turn']
 immediate_functions = ['relativeTime', 'set_up_plot']
 queued_functions = []
 starting = 0.0
