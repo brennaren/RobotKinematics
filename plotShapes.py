@@ -4,11 +4,12 @@ import numpy as np
 line = None             # Global line variable to be used in plotting functions
 ax = None               # Global axis variable to be used in plotting functions
 
+
 def plot_segment(x, y, dx, dy):
     line.set_data(np.append(line.get_xdata(), x),
                   np.append(line.get_ydata(), y))
     ax.quiver(x, y, dx, dy, color='r',
-              pivot = 'mid', angles='xy', scale_units='xy')
+              pivot='mid', angles='xy', scale_units='xy')
 
 
 def plot_circle(radius, center, step, steps_per_second):
@@ -63,7 +64,7 @@ def plot_semicircle(start, end, step, steps_per_second, direction):
         theta = np.linspace(initial_angle, initial_angle-np.pi, num_points)
     else:
         theta = np.linspace(initial_angle, initial_angle+np.pi, num_points)
-    
+
     dx = -radius * np.sin(theta)
     dy = radius * np.cos(theta)
 
@@ -92,32 +93,65 @@ def plot_curved_quadrilateral(vertices, step, steps_per_second):
                     step, steps_per_second, direction)
 
 
-def plot_tank_turn(point, start_angle, end_angle, angle_step, steps_per_second):
-    global cur_angle
+def plot_tank_turn(point, start_angle, end_angle, angle_step,
+                   steps_per_second):
     num_steps = int(abs(end_angle - start_angle) / angle_step)
     angle_values = np.linspace(start_angle, end_angle, num_steps)
 
     for angle in angle_values:
-        plot_segment(point[0], point[1], np.cos(np.radians(angle)), np.sin(np.radians(angle)))
+        plot_segment(point[0], point[1], np.cos(np.radians(angle)),
+                     np.sin(np.radians(angle)))
         plt.pause(1 / steps_per_second)
 
 
-def create_plot():
+def plot_hexagon(center, side_length, step, steps_per_second, direction,
+                 tank_turn):
+    num_sides = 6
+    angle_increment = 60
+    if direction == 'CCW':
+        angle_increment = -60
+
+    vertices = []
+    for i in range(num_sides):
+        angle_deg = i * angle_increment
+        angle_rad = np.radians(angle_deg)
+        x = center[0] + side_length * np.cos(angle_rad)
+        y = center[1] + side_length * np.sin(angle_rad)
+        vertices.append((x, y))
+
+    # Initial heading: direction from first vertex to second vertex
+    current_heading = np.degrees(np.arctan2(
+        vertices[1][1] - vertices[0][1],
+        vertices[1][0] - vertices[0][0]
+    ))
+
+    for i in range(num_sides):
+        start_vertex = vertices[i]
+        end_vertex = vertices[(i + 1) % num_sides]
+        plot_line(start_vertex, end_vertex, step, steps_per_second)
+        if tank_turn:
+            next_heading = current_heading + angle_increment
+            plot_tank_turn(end_vertex, current_heading, next_heading,
+                           10, steps_per_second)
+            current_heading = next_heading
+
+
+def create_plot(xMin, xMax, yMin, yMax):
     global line
     global ax
     # Plot settings
     plt.ion()
     fig, ax = plt.subplots(figsize=(5, 5))  # Modify figure size here
     ax.set_aspect('equal')
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
+    ax.set_xlim(xMin, xMax)
+    ax.set_ylim(yMin, yMax)
     ax.grid(True)
     line, = ax.plot([], [], '-')   # Modify line style here
 
 
 def end_plot():
     plt.ioff()
-    py = input("Press Enter to close the plot...")
+    input("Press Enter to close the plot...")
     plt.close()
     print("Plot closed")
 

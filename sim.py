@@ -3,12 +3,14 @@ import sys
 
 import plotShapes
 
-available_functions = ['plotShapes.plot_circle', 'plotShapes.plot_line',
+available_functions = ['plotShapes.plot_circle',
+                       'plotShapes.plot_line',
                        'plotShapes.plot_quadrilateral',
                        'plotShapes.plot_curved_quadrilateral',
                        'plotShapes.plot_semicircle',
-                       'plotShapes.plot_tank_turn']
-immediate_functions = ['relativeTime', 'set_up_plot']
+                       'plotShapes.plot_tank_turn',
+                       'plotShapes.plot_hexagon']
+immediate_functions = ['relativeTime', 'plotShapes.create_plot']
 queued_functions = []
 starting = 0.0
 relative = True  # true for incremental time (default), False for relative time
@@ -30,10 +32,6 @@ def relativeTime(arg):
     else:
         print(f"@{time.time()-starting:.2f}",
               "Interpretated as absolute times, starting now")
-
-
-def set_up_plot():
-    plotShapes.create_plot()
 
 
 def start_queue():
