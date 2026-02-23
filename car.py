@@ -18,8 +18,10 @@ pca.frequency = 1000        # set pwm clock in Hz (debug 60 was 1000)
 #        pwm_channel.duty_cycle = speed (0 .. 100)  speed example
 
 # CONSTANTS
-ROBOT_WIDTH = 21.0      # cm, distance between left and right wheels
-MPS_TO_POWER = 100.0    # scale factor to convert from m/s to power percentage
+ROBOT_WIDTH = 0.21      # m, distance between left and right wheels
+MPS_TO_POWER_TURN = 185.0   # convert from m/s to power percentage
+MPS_TO_POWER_LINEAR = 130.0     # convert from m/s to power percentage
+MPS_TO_POWER_ARC = 130.0     # convert from m/s to power percentage for arc turns
 
 # MOTORS
 # front controller, PCA channel
@@ -239,7 +241,11 @@ def stop_car():
     sfr.resetSpeed()
 
 
-def go_ahead(power, forSecs):
+def go_ahead(speed, distance):
+    forSecs = distance / speed
+    power = speed * MPS_TO_POWER_LINEAR
+    print(forSecs)
+    print(power)
     rl.move(power)
     rr.move(power)
     fl.move(power)
@@ -247,7 +253,9 @@ def go_ahead(power, forSecs):
     time.sleep(forSecs)
 
 
-def go_back(power, forSecs):
+def go_back(speed, distance):
+    forSecs = distance / speed
+    power = speed * MPS_TO_POWER_LINEAR
     rr.move(-power)
     rl.move(-power)
     fr.move(-power)
@@ -256,7 +264,9 @@ def go_back(power, forSecs):
 
 
 # Making right turn on spot (tank turn)
-def turn_right(power, forSecs):
+def turn_right(speed, degrees):
+    forSecs = (pi * ROBOT_WIDTH * degrees/360.0) / (speed)
+    power = speed * MPS_TO_POWER_TURN
     rl.move(power)
     rr.move(-power)
     fl.move(power)
@@ -265,7 +275,13 @@ def turn_right(power, forSecs):
 
 
 # Making left turn on spot (tank turn)
-def turn_left(power, forSecs):
+def turn_left(speed, degrees):
+    forSecs = (pi * ROBOT_WIDTH * degrees/360.0) / (speed)
+    power = speed * MPS_TO_POWER_TURN
+    
+    print(forSecs)
+    print(power)
+    
     rr.move(power)
     rl.move(-power)
     fr.move(power)
@@ -371,7 +387,7 @@ def coastAll(forSecs):
 
 def turn_semicircle(speed, radius, direction):
     forSecs = pi * radius / speed   # time to complete semicircle
-    power = speed * MPS_TO_POWER    # convert from m/s to power percentage
+    power = speed * MPS_TO_POWER_ARC    # convert from m/s to power percentage
 
     # compute inner/outer speeds as fractions of the nominal power
     inner_radius = radius - ROBOT_WIDTH / 2.0
@@ -395,6 +411,10 @@ def turn_semicircle(speed, radius, direction):
     else:
         left_power = outer_power
         right_power = inner_power
+
+    print(left_power)
+    print(right_power)
+    print(forSecs)
 
     # set wheel speeds
     fl.move(left_power)

@@ -1,4 +1,14 @@
 # instructions 
-turn_semicircle(0.1, 30, 'CW')
+# arc quadrilateral
+turn_semicircle(0.2, 0.5, 'CW')
+# tank turn quadrilateral
+# go_ahead(0.2, 1.0)
+# turn_left(0.2, 90)
+# go_ahead(0.2, 1.0)
+# turn_left(0.2, 90)
+# go_ahead(0.2, 1.0)
+# turn_left(0.2, 90)
+# go_ahead(0.2, 1.0)
+# turn_left(0.2, 90)
 # end of instructions
 
