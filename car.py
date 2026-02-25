@@ -1,4 +1,5 @@
-from cmath import pi
+from cmath import cos, pi, sin
+from math import atan2
 import time
 import sys
 import busio
@@ -19,9 +20,10 @@ pca.frequency = 1000        # set pwm clock in Hz (debug 60 was 1000)
 
 # CONSTANTS
 ROBOT_WIDTH = 0.21      # m, distance between left and right wheels
-MPS_TO_POWER_TURN = 185.0   # convert from m/s to power percentage
-MPS_TO_POWER_LINEAR = 130.0     # convert from m/s to power percentage
-MPS_TO_POWER_ARC = 130.0     # convert from m/s to power percentage for arc turns
+ROBOT_LENGTH = 0.095    # m, distance between front and rear wheels
+MPS_TO_POWER_TURN = 240.0   # convert from m/s to power percentage
+MPS_TO_POWER_LINEAR = 150.0     # convert from m/s to power percentage
+VELOCITY_SCALE_SEMICIRCLE = 0.8   # adjust velocity for semicircles
 
 # MOTORS
 # front controller, PCA channel
@@ -241,6 +243,57 @@ def stop_car():
     sfr.resetSpeed()
 
 
+def moveAll(vx, vy, omega, forSecs):
+    # omega in rad/s, positive is CCW, negative is CW
+    fl_power = vy + vx - omega * (ROBOT_WIDTH + ROBOT_LENGTH) / 2.0
+    fr_power = vy - vx + omega * (ROBOT_WIDTH + ROBOT_LENGTH) / 2.0
+    rl_power = vy - vx - omega * (ROBOT_WIDTH + ROBOT_LENGTH) / 2.0
+    rr_power = vy + vx + omega * (ROBOT_WIDTH + ROBOT_LENGTH) / 2.0
+
+    # Scale power to convert from m/s to power percentage
+    # and also to ensure that the maximum power does not exceed 100%
+    max_power = max(abs(fl_power), abs(fr_power),
+                    abs(rl_power), abs(rr_power)) or 1  # avoid division by 0
+    scale_factor = min(1, 100.0 / max_power)
+    fl_power = int(fl_power * MPS_TO_POWER_LINEAR * scale_factor)
+    fr_power = int(fr_power * MPS_TO_POWER_LINEAR * scale_factor)
+    rl_power = int(rl_power * MPS_TO_POWER_LINEAR * scale_factor)
+    rr_power = int(rr_power * MPS_TO_POWER_LINEAR * scale_factor)
+
+    print(fl_power)
+    print(fr_power)
+    print(rl_power)
+    print(rr_power)
+    print(forSecs)
+
+    # set wheel speeds
+    fl.move(fl_power)
+    fr.move(fr_power)
+    rl.move(rl_power)
+    rr.move(rr_power)
+    time.sleep(forSecs)
+
+
+def moveFromTo(startx, starty, endx, endy, forSecs):
+    # velocity in m/s, positive is forward, negative is backward, 0 is stop
+    # compute the distance to move and the angle to move in
+    dx = endx - startx
+    dy = endy - starty
+
+    distance = (dx**2 + dy**2)**0.5
+    velocity = distance / forSecs
+
+    vx = velocity * cos(atan2(dy, dx)).real
+    vy = velocity * sin(atan2(dy, dx)).real
+
+    print("Moving from (" + str(startx) + ", " + str(starty) + ") to ("
+          + str(endx) + ", " + str(endy) + ") at velocity " + str(velocity)
+          + " m/s for " + str(forSecs) + " seconds.")
+    print(vx, vy)
+
+    moveAll(vx, vy, 0, forSecs)
+
+
 def go_ahead(speed, distance):
     forSecs = distance / speed
     power = speed * MPS_TO_POWER_LINEAR
@@ -278,10 +331,10 @@ def turn_right(speed, degrees):
 def turn_left(speed, degrees):
     forSecs = (pi * ROBOT_WIDTH * degrees/360.0) / (speed)
     power = speed * MPS_TO_POWER_TURN
-    
+
     print(forSecs)
     print(power)
-    
+
     rr.move(power)
     rl.move(-power)
     fr.move(power)
@@ -385,43 +438,20 @@ def coastAll(forSecs):
     stop_car()  # will set speed to 0
 
 
-def turn_semicircle(speed, radius, direction):
-    forSecs = pi * radius / speed   # time to complete semicircle
-    power = speed * MPS_TO_POWER_ARC    # convert from m/s to power percentage
+def turn_semicircle(radius, forSecs):
+    # radius in m, forSecs in s, positive radius is left, negative is right
+    # compute the velocity needed to make the turn in the given time
+    velocity = (pi * abs(radius)) / forSecs
 
-    # compute inner/outer speeds as fractions of the nominal power
-    inner_radius = radius - ROBOT_WIDTH / 2.0
-    outer_radius = radius + ROBOT_WIDTH / 2.0
+    # compute the angular velocity needed to make the turn in the given time
+    omega = velocity / abs(radius)
+    if radius < 0:
+        omega = -omega
 
-    # avoid division by zero if someone passes a radius smaller than half the
-    # track width
-    if inner_radius <= 0:
-        inner_ratio = 0.0
-    else:
-        inner_ratio = inner_radius / radius
-    outer_ratio = outer_radius / radius
+    print("Turning semicircle with radius " + str(radius) + " m at velocity "
+          + str(velocity) + " m/s for " + str(forSecs) + " seconds.")
 
-    inner_power = power * inner_ratio
-    outer_power = power * outer_ratio
-
-    # assign speeds to left/right sides depending on turn direction
-    if direction == 'CW':
-        left_power = inner_power
-        right_power = outer_power
-    else:
-        left_power = outer_power
-        right_power = inner_power
-
-    print(left_power)
-    print(right_power)
-    print(forSecs)
-
-    # set wheel speeds
-    fl.move(left_power)
-    rl.move(left_power)
-    fr.move(right_power)
-    rr.move(right_power)
-    time.sleep(forSecs)
+    moveAll(0, velocity * VELOCITY_SCALE_SEMICIRCLE, omega, forSecs)
 
 
 def test_readPush():
