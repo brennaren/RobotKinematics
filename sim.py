@@ -3,35 +3,39 @@ import sys
 
 import plotShapes
 
-available_functions = ['plotShapes.plot_circle',
-                       'plotShapes.plot_line',
-                       'plotShapes.plot_quadrilateral',
-                       'plotShapes.plot_curved_quadrilateral',
-                       'plotShapes.plot_semicircle',
-                       'plotShapes.plot_tank_turn',
-                       'plotShapes.plot_hexagon']
+available_functions = [
+    'plotShapes.plot_circle',
+    'plotShapes.plot_line',
+    'plotShapes.plot_quadrilateral',
+    'plotShapes.plot_curved_quadrilateral',
+    'plotShapes.plot_semicircle',
+    'plotShapes.plot_tank_turn',
+    'plotShapes.plot_hexagon',
+]
 immediate_functions = ['relativeTime', 'plotShapes.create_plot']
+
 queued_functions = []
 starting = 0.0
-relative = True  # true for incremental time (default), False for relative time
+relative = True   # True -> incremental times; False -> absolute times
 started = False
 nextStart = 0.0
 
 
-def run_function(arg):  # helper function to check if registered
+def run_function(arg):
+    """Execute arg if it names a registered plotShapes function."""
     func = arg.split('(', 1)
-    if func[0] in available_functions:
-        exec(arg)
+    if func[0].strip() in available_functions:
+        exec(arg)  # noqa: S102
 
 
 def relativeTime(arg):
     global relative
     relative = arg
     if relative:
-        print(f"@{time.time()-starting:.2f} Interpretated as relative times")
+        print(f"@{time.time()-starting:.2f} Interpreted as relative times")
     else:
-        print(f"@{time.time()-starting:.2f}",
-              "Interpretated as absolute times, starting now")
+        print(f"@{time.time()-starting:.2f} Interpreted as absolute times,"
+              " starting now")
 
 
 def start_queue():
@@ -47,14 +51,11 @@ def start_queue():
 
 
 def main():
-    global starting
-    global nextStart
+    global starting, nextStart
+
     print("starting main, using file list of functions")
 
-    if len(sys.argv) == 1:
-        myfile = 'instructions.txt'
-    else:
-        myfile = sys.argv[1]
+    myfile = sys.argv[1] if len(sys.argv) > 1 else 'instructionsSim.txt'
     print("reading file ", myfile)
 
     with open(myfile, encoding="utf-8") as myf:
@@ -63,17 +64,18 @@ def main():
     starting = time.time()
     for i in actionList:
         print(i, end='')
-        if not i.startswith('#'):
-            j = i.split(' ', 1)
-            func = j[1].split('(', 1)
-            if func[0] in immediate_functions:
-                print("executing ", j[1])
-                exec(j[1])
+        if i.startswith('#'):
+            continue
+        j = i.split(' ', 1)
+        func = j[1].split('(', 1)
+        if func[0].strip() in immediate_functions:
+            print("executing ", j[1])
+            exec(j[1])  # noqa: S102
+        else:
+            if relative:
+                nextStart += float(j[0])
             else:
-                if relative:
-                    nextStart += float(j[0])
-                else:
-                    nextStart = float(j[0])
+                nextStart = float(j[0])
             queued_functions.append((nextStart, j[1]))
 
     print("input file commands added")
@@ -86,4 +88,4 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print("@{time.time()-starting:.2f} Stopped by user, cleanup done")
+        print(f"@{time.time()-starting:.2f} Stopped by user, cleanup done")

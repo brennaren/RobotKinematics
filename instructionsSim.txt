@@ -1,0 +1,17 @@
+# time function(parameters)
+# times are relative (incremental), order as in file
+# All shape functions now take speed in m/s instead of steps_per_second
+0.1 relativeTime(True)
+0.1 plotShapes.create_plot(-2, 2, -2, 2)
+# Athletic Track test
+1 plotShapes.plot_line((0, 0), (0, 1), 0.5)
+1 plotShapes.plot_semicircle((0, 1), (1, 1), 0.5, 'CW')
+1 plotShapes.plot_line((1, 1), (1, 0), 0.5)
+1 plotShapes.plot_semicircle((1, 0), (0, 0), 0.5, 'CW')
+# Tank Turn test
+# 1 plotShapes.plot_line((0, 0), (0.5, 0.5), 0.5)
+# 1 plotShapes.plot_tank_turn((0.5, 0.5), 45, 0, 10, 0.2)
+# 1 plotShapes.plot_line((0.5, 0.5), (1, 0.5), 0.5)
+# Hexagon test
+# 1 plotShapes.plot_hexagon((0, 0), 1, 0.5, 0.1, 'CW', True)
+# 1 plotShapes.plot_hexagon((0, 0), 1, 0.5, 0.1, 'CCW', True)
