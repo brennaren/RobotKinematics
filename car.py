@@ -2,6 +2,8 @@ from cmath import cos, pi, sin
 from math import atan2
 import time
 import sys
+
+from simple_pid import PID
 import busio
 from adafruit_pca9685 import PCA9685
 import RPi.GPIO as GPIO
@@ -21,9 +23,16 @@ pca.frequency = 1000        # set pwm clock in Hz (debug 60 was 1000)
 # CONSTANTS
 ROBOT_WIDTH = 0.21      # m, distance between left and right wheels
 ROBOT_LENGTH = 0.095    # m, distance between front and rear wheels
-MPS_TO_POWER_TURN = 240.0   # convert from m/s to power percentage
-MPS_TO_POWER_LINEAR = 150.0     # convert from m/s to power percentage
+M_PER_REV = 0.25
 VELOCITY_SCALE_SEMICIRCLE = 0.8   # adjust velocity for semicircles
+
+# PID constants, to be tuned
+fl_PID_gains = (800.0, 300.0, 5)
+fr_PID_gains = (800.0, 300.0, 5)
+rl_PID_gains = (800.0, 300.0, 5)
+rr_PID_gains = (800.0, 300.0, 5)
+PID_OUTPUT_LIMITS = (-100, 100)  # limit correction to +/- 30% power
+PID_INTERVAL = 0.001  # seconds between PID updates 20 ms
 
 # MOTORS
 # front controller, PCA channel
@@ -55,7 +64,7 @@ S2RR = 11   # pin 23
 
 S1RL = 5    # pin 29
 S2RL = 6    # pin 31
-perRev = 750    # estimate A type motors 155 #2024 motors 750
+perRev = 155    # estimate A type motors 155 #2024 motors 750
 
 # PCA9685
 PWMOEN = 4  # pin 7 # PCA9685 OEn pin
@@ -94,28 +103,42 @@ low = 0        # 0 was False
 
 
 class Wheel:
-    def __init__(self, name, enCh, in1Ch, in2Ch):
+    def __init__(self, name, enCh, in1Ch, in2Ch, pid_gains, output_limits,
+                 encoder):
         self.name = name
         self.en = pca.channels[enCh]
         self.in1 = pca.channels[in1Ch]
         self.in2 = pca.channels[in2Ch]
+        self.k_p = pid_gains[0]
+        self.k_i = pid_gains[1]
+        self.k_d = pid_gains[2]
+        self.pid = PID(self.k_p, self.k_i, self.k_d, setpoint=0,
+                       output_limits=output_limits,
+                       sample_time=PID_INTERVAL)
+        self.encoder = encoder
+        self.setpoints = []
+        self.speeds = []
+        self.powers = []
+    
 
-    def move(self, power):
-        self.in1.duty_cycle = high if power > 0 else low
-        self.in2.duty_cycle = low if power > 0 else high
-        self.en.duty_cycle = getPWMPer(abs(power))
+    def move(self, velocity):
+        if (velocity == 0):
+            self.brake()
+        else:
+            self.pid.setpoint = velocity
+            spd = self.encoder.readSpeed()
+            power = self.pid(spd)
+            print(self.name, "setpoint:", velocity, "spd:", spd, "power:", power)  # debug
+            self.setpoints.append(self.pid.setpoint)
+            self.speeds.append(spd)
+            self.powers.append(power)
+            self.in1.duty_cycle = high if power > 0 else low
+            self.in2.duty_cycle = low if power > 0 else high
+            self.en.duty_cycle = getPWMPer(abs(power))
 
     def brake(self):
         self.in1.duty_cycle = low
         self.in2.duty_cycle = low
-
-
-# Set up Wheel instances with connections, ch 0 is left end,
-# leaving one pin per quad for future
-rl = Wheel("rl", ENBRL, IN3RL, IN4RL)   # Rear-left wheel
-rr = Wheel("rr", ENARR, IN1RR, IN2RR)   # Rear-right wheel
-fl = Wheel("fl", ENBFL, IN3FL, IN4FL)   # Front-left wheel
-fr = Wheel("fr", ENAFR, IN1FR, IN2FR)   # Front-right wheel
 
 
 class Encoder:
@@ -174,6 +197,8 @@ class Encoder:
     def callback_encoder(self, channel):
         self.readEncoder()
 
+
+    # returns speed in rev/s
     def readSpeed(self):
         # correct for side of car left goes - otherwise
         if self.time != 0 and self.time != self.lastTime:
@@ -189,7 +214,8 @@ class Encoder:
         self.lastTime = self.time
         self.lastCounter = self.counter
 
-        return self.speed
+        # Scale by encoder tick/ns to rev/s
+        return self.speed / perRev / 4 * 1e9 * M_PER_REV
 
     def resetSpeed(self):
         self.speed = 0
@@ -201,10 +227,22 @@ class Encoder:
 
 # Set up Encoder instances with connections, GPIO.board (swheel),
 # side = -1 if speed reported negative
-sfl = Encoder("sfl", S1FL, S2FL, -1)
-sfr = Encoder("sfr", S1FR, S2FR, 1)
-srl = Encoder("srl", S1RL, S2RL, -1)
-srr = Encoder("srr", S1RR, S2RR, 1)
+sfl = Encoder("sfl", S1FL, S2FL, 1)
+sfr = Encoder("sfr", S1FR, S2FR, -1)
+srl = Encoder("srl", S1RL, S2RL, 1)
+srr = Encoder("srr", S1RR, S2RR, -1)
+
+
+# Set up Wheel instances with connections, ch 0 is left end,
+# leaving one pin per quad for future
+rl = Wheel("rl", ENBRL, IN3RL, IN4RL, rl_PID_gains, PID_OUTPUT_LIMITS,
+           srl)   # Rear-left wheel
+rr = Wheel("rr", ENARR, IN1RR, IN2RR, rr_PID_gains, PID_OUTPUT_LIMITS,
+           srr)   # Rear-right wheel
+fl = Wheel("fl", ENBFL, IN3FL, IN4FL, fl_PID_gains, PID_OUTPUT_LIMITS,
+           sfl)   # Front-left wheel
+fr = Wheel("fr", ENAFR, IN1FR, IN2FR, fr_PID_gains, PID_OUTPUT_LIMITS,
+           sfr)   # Front-right wheel
 
 
 def test_speed():
@@ -243,40 +281,28 @@ def stop_car():
     sfr.resetSpeed()
 
 
-def moveAll(vx, vy, omega, forSecs):
-    # omega in rad/s, positive is CCW, negative is CW
-    fl_power = vy + vx - omega * (ROBOT_WIDTH + ROBOT_LENGTH) / 2.0
-    fr_power = vy - vx + omega * (ROBOT_WIDTH + ROBOT_LENGTH) / 2.0
-    rl_power = vy - vx - omega * (ROBOT_WIDTH + ROBOT_LENGTH) / 2.0
-    rr_power = vy + vx + omega * (ROBOT_WIDTH + ROBOT_LENGTH) / 2.0
-
-    # Scale power to convert from m/s to power percentage
-    # and also to ensure that the maximum power does not exceed 100%
-    max_power = max(abs(fl_power), abs(fr_power),
-                    abs(rl_power), abs(rr_power)) or 1  # avoid division by 0
-    scale_factor = min(1, 100.0 / max_power)
-    fl_power = int(fl_power * MPS_TO_POWER_LINEAR * scale_factor)
-    fr_power = int(fr_power * MPS_TO_POWER_LINEAR * scale_factor)
-    rl_power = int(rl_power * MPS_TO_POWER_LINEAR * scale_factor)
-    rr_power = int(rr_power * MPS_TO_POWER_LINEAR * scale_factor)
-
-    print(fl_power)
-    print(fr_power)
-    print(rl_power)
-    print(rr_power)
-    print(forSecs)
-
-    # set wheel speeds
+def set_powers(fl_power, fr_power, rl_power, rr_power):
     fl.move(fl_power)
     fr.move(fr_power)
     rl.move(rl_power)
     rr.move(rr_power)
-    time.sleep(forSecs)
+
+
+def moveAllPID(vx, vy, omega, forSecs):
+    # omega in rad/s, positive is CCW, negative is CW
+    fl_target = vy + vx - omega * (ROBOT_WIDTH + ROBOT_LENGTH) / 2.0
+    fr_target = vy - vx + omega * (ROBOT_WIDTH + ROBOT_LENGTH) / 2.0
+    rl_target = vy - vx - omega * (ROBOT_WIDTH + ROBOT_LENGTH) / 2.0
+    rr_target = vy + vx + omega * (ROBOT_WIDTH + ROBOT_LENGTH) / 2.0
+
+    start_time = time.perf_counter_ns()
+    while time.perf_counter_ns() - start_time < forSecs * 1e9:
+        # Targets passed directly into each wheel's persistent PID
+        set_powers(fl_target, fr_target, rl_target, rr_target)
+        time.sleep(PID_INTERVAL)
 
 
 def moveFromTo(startx, starty, endx, endy, forSecs):
-    # velocity in m/s, positive is forward, negative is backward, 0 is stop
-    # compute the distance to move and the angle to move in
     dx = endx - startx
     dy = endy - starty
 
@@ -291,141 +317,20 @@ def moveFromTo(startx, starty, endx, endy, forSecs):
           + " m/s for " + str(forSecs) + " seconds.")
     print(vx, vy)
 
-    moveAll(vx, vy, 0, forSecs)
+    moveAllPID(vx, vy, 0, forSecs)
 
 
-def go_ahead(speed, distance):
-    forSecs = distance / speed
-    power = speed * MPS_TO_POWER_LINEAR
-    print(forSecs)
-    print(power)
-    rl.move(power)
-    rr.move(power)
-    fl.move(power)
-    fr.move(power)
-    time.sleep(forSecs)
-
-
-def go_back(speed, distance):
-    forSecs = distance / speed
-    power = speed * MPS_TO_POWER_LINEAR
-    rr.move(-power)
-    rl.move(-power)
-    fr.move(-power)
-    fl.move(-power)
-    time.sleep(forSecs)
-
-
-# Making right turn on spot (tank turn)
 def turn_right(speed, degrees):
-    forSecs = (pi * ROBOT_WIDTH * degrees/360.0) / (speed)
-    power = speed * MPS_TO_POWER_TURN
-    rl.move(power)
-    rr.move(-power)
-    fl.move(power)
-    fr.move(-power)
-    time.sleep(forSecs)
+    # Duration calculated the same way, now driven by PID
+    forSecs = (pi * ROBOT_WIDTH * degrees / 360.0) / speed
+    omega = -speed / (ROBOT_WIDTH / 2.0)   # CW → negative omega
+    moveAllPID(0, 0, omega, forSecs)
 
 
-# Making left turn on spot (tank turn)
 def turn_left(speed, degrees):
-    forSecs = (pi * ROBOT_WIDTH * degrees/360.0) / (speed)
-    power = speed * MPS_TO_POWER_TURN
-
-    print(forSecs)
-    print(power)
-
-    rr.move(power)
-    rl.move(-power)
-    fr.move(power)
-    fl.move(-power)
-    time.sleep(forSecs)
-
-
-# parallel left shift (crab left)
-def shift_left(power, forSecs):
-    fr.move(power)
-    rr.move(-power)
-    rl.move(power)
-    fl.move(-power)
-    time.sleep(forSecs)
-
-
-# parallel right shift (crab right)
-def shift_right(power, forSecs):
-    fr.move(-power)
-    rr.move(power)
-    rl.move(-power)
-    fl.move(power)
-    time.sleep(forSecs)
-
-
-# Diagonal forward and right @45
-def upper_right(power, forSecs):
-    rr.move(power)
-    fl.move(power)
-    time.sleep(forSecs)
-
-
-# Diagonal back and left @45
-def lower_left(power, forSecs):
-    rr.move(-power)
-    fl.move(-power)
-    time.sleep(forSecs)
-
-
-# Diagonal forward and left @45
-def upper_left(power, forSecs):
-    fr.move(power)
-    rl.move(power)
-    time.sleep(forSecs)
-
-
-# Diagonal back and right @45
-def lower_right(power, forSecs):
-    fr.move(-power)
-    rl.move(-power)
-    time.sleep(forSecs)
-
-
-# Front left only
-def front_left(power, forSecs):
-    print("Front left ahead @ " + str(power) + "% for " + str(forSecs)
-          + " secs.")
-    fl.move(power)
-    time.sleep(forSecs)
-    test_speed()
-    stop_car()  # will set speed to 0
-
-
-# Front right only
-def front_right(power, forSecs):
-    print("Front right ahead @ " + str(power) + "% for " + str(forSecs)
-          + " secs.")
-    fr.move(power)
-    time.sleep(forSecs)
-    test_speed()
-    stop_car()  # will set speed to 0
-
-
-# Rear left only
-def rear_left(power, forSecs):
-    print("Rear left ahead @ " + str(power) + "% for " + str(forSecs)
-          + " secs.")
-    rl.move(power)
-    time.sleep(forSecs)
-    test_speed()
-    stop_car()  # will set speed to 0
-
-
-# Rear right only
-def rear_right(power, forSecs):
-    print("Rear right ahead @ " + str(power) + "% for " + str(forSecs)
-          + " secs.")
-    rr.move(power)
-    time.sleep(forSecs)
-    test_speed()
-    stop_car()  # will set speed to 0
+    forSecs = (pi * ROBOT_WIDTH * degrees / 360.0) / speed
+    omega = speed / (ROBOT_WIDTH / 2.0)    # CCW → positive omega
+    moveAllPID(0, 0, omega, forSecs)
 
 
 def coastAll(forSecs):
@@ -435,15 +340,11 @@ def coastAll(forSecs):
     fr.move(0)
     fl.move(0)
     time.sleep(forSecs)
-    stop_car()  # will set speed to 0
+    stop_car()
 
 
 def turn_semicircle(radius, forSecs):
-    # radius in m, forSecs in s, positive radius is left, negative is right
-    # compute the velocity needed to make the turn in the given time
     velocity = (pi * abs(radius)) / forSecs
-
-    # compute the angular velocity needed to make the turn in the given time
     omega = velocity / abs(radius)
     if radius < 0:
         omega = -omega
@@ -451,7 +352,8 @@ def turn_semicircle(radius, forSecs):
     print("Turning semicircle with radius " + str(radius) + " m at velocity "
           + str(velocity) + " m/s for " + str(forSecs) + " seconds.")
 
-    moveAll(0, velocity * VELOCITY_SCALE_SEMICIRCLE, omega, forSecs)
+    # Uses PID loop instead of open-loop moveAll
+    moveAllPID(0, velocity * VELOCITY_SCALE_SEMICIRCLE, omega, forSecs)
 
 
 def test_readPush():
@@ -461,7 +363,6 @@ def test_readPush():
 
 
 def destroy():
-    # pwmOEn=1 # disable outputs of PCA9685
     GPIO.output(PWMOEN, 1)
     GPIO.cleanup()
 
@@ -478,15 +379,14 @@ def main():
     with open(myfile, encoding="utf-8") as myf:
         actionList = myf.readlines()
 
-    GPIO.output(PWMOEN, 0)  # enable PWM outputs
+    GPIO.output(PWMOEN, 0)
     for x in actionList:
         print(x, end='')
         if '#' not in x:
             exec(x)
 
-    stop_car()  # stop movement
-
-    destroy()   # clean up GPIO
+    stop_car()
+    destroy()
     print("\nStopped and cleanup done")
 
 
@@ -494,6 +394,6 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        stop_car()  # stop movement
-        destroy()   # clean up GPIO
+        stop_car()
+        destroy()
         print("\nStopped and cleanup done")

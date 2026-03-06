@@ -1,17 +1,3 @@
 # instructions 
-# arc quadrilateral
-# moveFromTo(0, 0, 0, 1.0, 5)
-# turn_semicircle(0.5, 4)
-# moveFromTo(0, 0, 0, 1.0, 5)
-# turn_semicircle(0.5, 4)
-
-# tank turn quadrilateral
-moveFromTo(0, 0, 0, 1.0, 5)
-turn_left(0.2, 90)
-moveFromTo(0, 0, 0, 1.0, 5)
-turn_left(0.2, 90)
-moveFromTo(0, 0, 0, 1.0, 5)
-turn_left(0.2, 90)
-moveFromTo(0, 0, 0, 1.0, 5)
-turn_left(0.2, 90)
+moveFromTo(0, 0, 0, 1.0, 3)
 # end of instructions
