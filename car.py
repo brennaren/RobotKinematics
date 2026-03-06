@@ -173,7 +173,7 @@ def _draw_wheel_panels(spd_fl, spd_fr, spd_rl, spd_rr):
 
 
 def _update_trajectory(spd_fl, spd_fr, spd_rl, spd_rr):
-    global _robot_x, _robot_y, _robot_heading, _traj_line
+    global _robot_x, _robot_y, _robot_heading
 
     if _ax_traj is None:
         return
@@ -268,7 +268,7 @@ class Wheel:
             self.pid.setpoint = velocity
             spd = self.encoder.readSpeed()
             power = self.pid(spd)
-            print(self.name, "setpoint:", velocity, "spd:", spd, "power:", power)
+            print(self.name, "setp:", velocity, "spd:", spd, "pwr:", power)
             self.setpoints.append(self.pid.setpoint)
             self.speeds.append(spd)
             self.powers.append(power)
