@@ -1,3 +1,3 @@
 # instructions 
-moveFromTo(0, 0, 0, 1.0, 3)
+moveFromTo(0, 0, 0, 1.0, 2)
 # end of instructions

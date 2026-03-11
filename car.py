@@ -7,7 +7,7 @@ from simple_pid import PID
 import busio
 from adafruit_pca9685 import PCA9685
 import RPi.GPIO as GPIO
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
 
 SCL = 3
@@ -25,12 +25,12 @@ M_PER_REV = 0.25
 VELOCITY_SCALE_SEMICIRCLE = 0.8
 
 # PID constants, to be tuned
-fl_PID_gains = (800.0, 300.0, 5)
-fr_PID_gains = (800.0, 300.0, 5)
-rl_PID_gains = (800.0, 300.0, 5)
-rr_PID_gains = (800.0, 300.0, 5)
+fl_PID_gains = (400.0, 1800.0, 0.25)
+fr_PID_gains = (400.0, 1500.0, 0.2)
+rl_PID_gains = (500.0, 2000.0, 0.2)
+rr_PID_gains = (400.0, 1800.0, 0.25)
 PID_OUTPUT_LIMITS = (-100, 100)
-PID_INTERVAL = 0.001  # seconds between PID updates
+PID_INTERVAL = 0.01  # seconds between PID updates
 
 # MOTORS — front controller, PCA channel
 ENAFR = 0
@@ -405,7 +405,7 @@ def set_powers(fl_power, fr_power, rl_power, rr_power):
     fr.move(fr_power)
     rl.move(rl_power)
     rr.move(rr_power)
-    # Read actual encoder speeds and push them to the live display
+    print("\n")
 
 
 def update_display_all():
@@ -426,7 +426,7 @@ def moveAllPID(vx, vy, omega, forSecs):
     start_time = time.perf_counter_ns()
     while time.perf_counter_ns() - start_time < forSecs * 1e9:
         set_powers(fl_target, fr_target, rl_target, rr_target)
-        update_display_all()
+        # update_display_all()
         time.sleep(PID_INTERVAL)
 
 
@@ -500,7 +500,7 @@ def main():
         actionList = myf.readlines()
 
     GPIO.output(PWMOEN, 0)
-    create_display()    # open the live telemetry figure
+    # create_display()    # open the live telemetry figure
 
     for x in actionList:
         print(x, end='')
@@ -508,7 +508,7 @@ def main():
             exec(x)
 
     stop_car()
-    close_display()     # hold plot open until Enter is pressed
+    # close_display()     # hold plot open until Enter is pressed
     destroy()
     print("\nStopped and cleanup done")
 
@@ -518,6 +518,6 @@ if __name__ == '__main__':
         main()
     except KeyboardInterrupt:
         stop_car()
-        close_display()
+        # close_display()
         destroy()
         print("\nStopped and cleanup done")
