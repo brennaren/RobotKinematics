@@ -1,3 +1,8 @@
 # instructions 
-moveFromTo(0, 0, 0, 1.0, 2)
+moveFromTo(0, 0, 0, 1.0, 5)
+move_arc(0.5, -pi, 5, pi/2)
+moveFromTo(0, 0, 0, 1.0, 5)
+turn_right(0.2, 90)
+moveFromTo(0, 0, 0, 1.0, 5)
+turn_right(0.2, 90)
 # end of instructions

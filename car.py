@@ -21,15 +21,15 @@ pca.frequency = 1000
 # CONSTANTS
 ROBOT_WIDTH = 0.21      # m, distance between left and right wheels
 ROBOT_LENGTH = 0.095    # m, distance between front and rear wheels
-M_PER_REV = 0.25
-VELOCITY_SCALE_SEMICIRCLE = 0.8
+M_PER_REV = 0.21
+VELOCITY_SCALE_SEMICIRCLE = 0.9
 
 # PID constants, to be tuned
-fl_PID_gains = (400.0, 1800.0, 0.25)
-fr_PID_gains = (400.0, 1500.0, 0.2)
-rl_PID_gains = (500.0, 2000.0, 0.2)
-rr_PID_gains = (400.0, 1800.0, 0.25)
-PID_OUTPUT_LIMITS = (-100, 100)
+fl_PID_gains = (400.0, 700.0, 0.15)
+fr_PID_gains = (400.0, 700.0, 0.1)
+rl_PID_gains = (500.0, 900.0, 0.1)
+rr_PID_gains = (400.0, 700.0, 0.15)
+PID_OUTPUT_LIMITS = (-90, 90)
 PID_INTERVAL = 0.01  # seconds between PID updates
 
 # MOTORS — front controller, PCA channel
@@ -454,6 +454,57 @@ def turn_left(speed, degrees):
     forSecs = (pi * ROBOT_WIDTH * degrees / 360.0) / speed
     omega = speed / (ROBOT_WIDTH / 2.0)
     moveAllPID(0, 0, omega, forSecs)
+
+def move_arc(radius, arc_angle, forSecs, heading):
+    """
+    Move the robot along a circular arc while maintaining a fixed heading.
+
+    Coordinate system:
+        - X: right
+        - Y: forward (away from robot at heading=0)
+        - Angles: measured CCW from +X axis (standard math convention)
+        - heading: robot's orientation in world frame, CCW from +X
+            - heading=0:       robot faces +X (right)
+            - heading=pi/2:    robot faces +Y (forward/up)
+            - heading=pi:      robot faces -X (left)
+            - heading=-pi/2:   robot faces -Y (backward)
+
+    Args:
+        radius:    Circle radius in meters. 
+                   Positive = circle center is to the robot's LEFT.
+                   Negative = circle center is to the robot's RIGHT.
+        arc_angle: Signed angle of arc to travel in radians.
+                   Positive = CCW travel.
+                   Negative = CW travel.
+        forSecs:   Duration of the arc in seconds.
+        heading:   Fixed world-frame heading the robot maintains throughout (radians).
+    """
+
+    arc_length = abs(radius * arc_angle)
+    speed = arc_length / forSecs * VELOCITY_SCALE_SEMICIRCLE
+
+    # Angular velocity: positive = CCW, negative = CW
+    omega = -speed / radius if arc_angle < 0 else speed / radius
+
+    # Tangent direction in world frame at start of arc.
+    # Robot moves perpendicular to the radius vector.
+    # At heading h, robot's left is heading + pi/2.
+    # If radius > 0, center is to the left, so tangent points "forward" along heading.
+    # arc_angle sign then flips the tangent for CW vs CCW.
+    tangent_angle = heading + (pi / 2 if arc_angle >= 0 else -pi / 2)
+    vx = np.cos(tangent_angle) * speed
+    vy = np.sin(tangent_angle) * speed
+
+    # Transform world-frame velocity into robot body frame (rotate by -heading)
+    vx_body =  vx * np.cos(heading) + vy * np.sin(heading)
+    vy_body = -vx * np.sin(heading) + vy * np.cos(heading)
+
+    print(f"Arc: radius={radius:.3f}m, arc_angle={arc_angle:.3f}rad, "
+          f"speed={speed:.3f}m/s, omega={omega:.3f}rad/s, heading={heading:.3f}rad")
+    print(f"World  velocity: vx={vx:.3f}, vy={vy:.3f}")
+    print(f"Body   velocity: vx_body={vx_body:.3f}, vy_body={vy_body:.3f}")
+
+    moveAllPID(vx_body, vy_body, omega, forSecs)
 
 
 def coastAll(forSecs):
